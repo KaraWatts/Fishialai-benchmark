@@ -21,3 +21,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# data file
+/Fishial_Export_May_13_2024_14_29_Prod_Export_Test_Images_for_testing.json
