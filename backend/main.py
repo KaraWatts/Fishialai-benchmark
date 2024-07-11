@@ -6,19 +6,21 @@ from dotenv import load_dotenv
 import mysql.connector
 from mysql.connector import Error
 from flask_caching import Cache
+from cocoapi.PythonAPI.pycocotools.coco import COCO
 import enum
 import requests
 import os
+import hashlib
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Initialize Flask application
 app = Flask(__name__)
-cors = CORS(app, origins="*")
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+app.config['CACHE_TYPE'] = 'simple'  # Use a simple in-memory cache
+cache = Cache(app)
 
-
-# 
 def create_database_if_not_exists():
     try:
         # Try to connect to MySQL server
@@ -91,12 +93,63 @@ class BenchmarkRun(db.Model):
         UniqueConstraint('coco_image_id', 'dev_api_version', 'stage_or_production', 'run_datetime', name='unique_key_index'),
     )
 
-data = {'data': "Test DATA"}
+data = {'data': "Test Successful"}
 
-# get test data
-@app.route("/data/test", methods=("GET",))
+# test route
+@app.route("/test", methods=("GET",))
 def test_data():
     return jsonify(data)
+
+
+# Download Images to local directory
+def download_images(file_path):
+    # initialize COCO api for instance annotations
+    coco=COCO(file_path)
+    imgs = coco.loadImgs(coco.imgs)
+
+    for img in imgs:
+       coco.download_and_cache_images(coco.cache_dir, img['coco_url'], img['id'])
+    # TODO add return control to share success or failure of download with list of images that failed to download
+    
+
+
+# Upload test data coco file
+@app.route('/upload_test_data', methods=['POST'])
+def upload_test_data():
+    if 'file' not in request.files:
+        return jsonify({'message': 'No file part in the request'}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({'message': 'No file selected for uploading'}), 400
+
+    save_directory = 'annotations'
+    os.makedirs(save_directory, exist_ok=True)
+    file_path = os.path.join(save_directory, file.filename)
+
+    file.save(file_path)
+
+    download_images(file_path)
+    return jsonify({'message': 'File uploaded successfully!', 'filename': file.filename}), 200
+
+
+def verify_file_integrity(file_path, original_file_path):
+    # Calculate checksums of both files and compare
+    original_checksum = calculate_checksum(original_file_path)
+    saved_checksum = calculate_checksum(file_path)
+    
+    return original_checksum == saved_checksum
+
+def calculate_checksum(file_path):
+    hasher = hashlib.md5()
+    with open(file_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b''):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+    
+
+
 
 
 # get access token from Fishial API
@@ -116,7 +169,6 @@ def get_token(environment):
         'client_id': client_id,
         'client_secret': client_secret
     }
-
     response = requests.post(url, headers=headers, json=data)
 
     if response.status_code == 200:
@@ -124,6 +176,8 @@ def get_token(environment):
         return token
     else:
         return None
+
+
 
 #fetch token and cache it
 @app.route('/get_token/<environment>', methods=['GET'])
@@ -137,8 +191,8 @@ def fetch_token(environment):
 
 
 # request url for image upload
-@app.route('/upload_image/<environment>', methods=['POST'])
-def request_image_url(environment):
+@app.route('/image_url/<environment>/<image_id>', methods=['POST'])
+def request_image_url(environment, image_id):
     if environment == 'stage':
         url = 'https://api.stage.fishial.ai/v1/recognition/upload'
     else:
@@ -168,6 +222,7 @@ def request_image_url(environment):
         return jsonify(response.json())
     else:
         return jsonify({'error': 'Failed to upload image'}), response.status_code
+
 
 # upload image to Fishial API
 @app.route('/upload_image', methods=['PUT'])
