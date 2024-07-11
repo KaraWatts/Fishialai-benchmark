@@ -1,63 +1,62 @@
-import { useState } from "react";
+import { useState } from 'react';
+import axios from 'axios';
 
-export function Upload() {
-  const [data, setData] = useState(null);
-  const [images, setImages] = useState(null)
-  const [selectedImage, setSelectedImage] = useState(null)
-  const handleChange = e => {
-    const fileReader = new FileReader();
-    fileReader.readAsText(e.target.files[0], "UTF-8");
-    fileReader.onload = e => {
-      console.log("Raw file content:", e.target.result); // Debugging: Log raw file content
-      try {
-        const json = JSON.parse(e.target.result);
-        setData(json); // Save dataset info
-        setImages(json.image); // Save all images
-        console.log("Parsed JSON Info:", json.info);
-      } catch (err) {
-        console.error("Error Parsing JSON:", err);
-        setData({ error: "Invalid JSON" });
-      }
-    };
+export default function Upload() {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [data, setData] = useState([]);
+  const [selectedData, setSelectedData] = useState("");
+
+  const handleFileChange = (event) => {
+    setSelectedFile(event.target.files[0]);
   };
 
-  const handleImageClick = (image) => {
-    setSelectedImage(image)
-    
-  }
+  const handleItemClick = (fileName) => {
+    setSelectedData(fileName);
+  };
+
+  const handleFileUpload = async () => {
+    if (!selectedFile) {
+      alert('Please select a file first');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const reponse = await axios.post('http://localhost:8080/upload_test_data', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const responseData = reponse.data
+      setData([...data, responseData.filename])
+      alert('File uploaded successfully!');
+    } catch (error) {
+      alert('Failed to upload file');
+      console.error('Error:', error);
+    }
+  };
 
   return (
-    <>
-      <h1>Upload JSON file</h1>
-      <input type="file" onChange={handleChange} accept=".json" />
-      <br />
-      {data && (
-        <div>
-        <pre>{JSON.stringify(data.info, null, 2)}</pre>
-      {selectedImage && (
-        <div>
-          <h4>Selected Image Details:</h4>
-          <p>Image ID: {selectedImage.id}</p>
-          <p>Scientific Name: {selectedImage.scientific_name}</p>
-          {/* Add more details as needed */}
-        </div>
-      )}
-        <h4>Images List:</h4>
+    <div className='datasetList'>
+      <h1>Upload COCO File</h1>
+      <input type="file" accept=".json" onChange={handleFileChange} />
+      <button onClick={handleFileUpload}>Upload</button>
+      <h3>Select Dataset to Run Tests</h3>
+      {data ? 
           <ul>
-            {images.map((image) => (
-              <li key={image.id} onClick={() => handleImageClick(image)} style={{ cursor: "pointer" }}>
-                {image.coco_url} - Scientific Name: {image.scientific_name}
+            {data.map((fileName, index) => (
+              <li key={index}>
+              <button onClick={() => handleItemClick(fileName)}>
+              {fileName}
+              </button>
               </li>
             ))}
-          </ul>
-        </div>
-      )}
-
-      {data && data.error && (
-        <p>{data.error}</p>
-      )}
-
-      
-    </>
+          </ul> : 
+          <p>No files uploaded yet</p>
+      }
+      <p>{selectedData}</p>
+    </div>
   );
 }

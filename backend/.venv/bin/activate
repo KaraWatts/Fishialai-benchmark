@@ -35,7 +35,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/Users/kWatts/Repos/fishial-ai-benchmark/backend/.venv"
+VIRTUAL_ENV="/Users/kWatts/Repos/fishialai-benchmark/backend/.venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
