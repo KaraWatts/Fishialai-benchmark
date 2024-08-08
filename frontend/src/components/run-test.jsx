@@ -5,8 +5,7 @@ export default function RunTest() {
   const [environment, setEnvironment] = useState("");
   const [tasks, setTasks] = useState([
     { id: 1, name: 'Retrieve Token', status: 'pending' },
-    { id: 2, name: 'Get Image URL', status: 'pending' },
-    { id: 3, name: 'Upload Image', status: 'pending' },
+    { id: 2, name: 'Run image tests', status: 'pending' }
   ]);
 
   const updateTaskStatus = (id, status) => {
@@ -33,14 +32,6 @@ export default function RunTest() {
       console.log(imageURL.data);
       updateTaskStatus(2, 'success');
 
-      // updateTaskStatus(3, 'running');
-      // await axios.post(`http://localhost:8080/upload_image`, {
-      //   'url': imageURL.data,
-      //   'Content-Disposition': null,
-      //   'Content_Md5': null,
-      //   'Content-Type': null,
-      // });
-      // updateTaskStatus(3, 'success');
 
       alert('Tasks run successfully!');
     } catch (error) {

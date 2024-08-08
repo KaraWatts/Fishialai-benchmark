@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, Float, UniqueConstraint
 import enum
 import requests
-from utilities import save_file, download_images, get_token, fetch_image_url, create_database_if_not_exists, database_url, cache, staging_secret, staging_ID, prod_ID, prod_secret
+from utilities import fish_detection, compare_results, send_feedback, get_api_url, save_file, download_images, get_token, fetch_image_url, submit_image ,create_database_if_not_exists, database_url, cache, staging_secret, staging_ID, prod_ID, prod_secret
 
 
 # Initialize Flask application
@@ -149,53 +149,46 @@ def fetch_token(environment):
 
 
 @app.route('/image_url/<environment>/<image_id>', methods=['POST'])
-def request_image_url(environment, image_id):
+def submit_image_with_feedback(environment, image_id):
     '''
-    Request URL for image upload
+    Full API call test series for Fishial API
+    1. Fetch image URL
+    2. Upload image to Fishial API
+    3. Request fish detection
+    4. Send feedback - agree or disagree with feedback - based on response match to test data
 
     Parameters:
     environment: str
-    image_id: int
+    image_id: str
 
     Returns:
-    JSON response: image upload URL data or error message
+    JSON response: success message or error message
     '''
         
-    if environment == 'stage':
-        url = 'https://api.stage.fishial.ai/v1/recognition/upload'
-    else:
-        url = 'https://api.fishial.ai/v1/recognition/upload'
+    url = get_api_url(environment)
 
-    # Request image upload URL from Fishial API
-    image_url_data = fetch_image_url(url, image_id)
+    try:
+        # submit image data to Fishial API to receive image url
+        fetch_image_url(url, image_id)
+        # upload image to Fishial API using image url
+        submit_image()
+        # request fish detection from Fishial API
+        detection_results = fish_detection()
+        # compare results from Fishial API to test data
+        match = compare_results(detection_results)
+        # send match results feedback to Fishial API
+        send_feedback(match)
 
-    return image_url_data
-
-
-
-
-# upload image to Fishial API
-@app.route('/upload_image', methods=['PUT'])
-def upload_image():
-    # Get data from request
-    url = request.args.get('url')
-    content_disposition = request.headers.get('Content-Disposition')
-    content_md5 = request.headers.get('Content-Md5')
-    content_type = request.headers.get('Content-Type')
-    image_file = request.files['image']  # Assuming 'image' is the name of the file input field
-
-    headers = {
-        'Content-Disposition': 'inline; filename="fishpic.jpg"; filename*=UTF-8\'\'fishpic.jpg',
-        'Content-Md5': 'EA5w4bPQDfzBgEbes8ZmuQ==',
-        'Content-Type': ''  # Make sure to set the correct Content-Type if required
-    }
-    files = {'file': open(image, 'rb')}
-    response = requests.put(url, headers=headers, files=files)
+        return jsonify({'message': 'Full image submission with feedback completed succesfully'}), 200
     
-    if response.status_code == 200:
-        print('File uploaded successfully.')
-    else:
-        print(f'Failed to upload file. Status code: {response.status_code}')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+
 
 #TODO - set up image data to be found by image id - can find individual image or loop through all
 #TODO - need to combine with coco.py files to get image data

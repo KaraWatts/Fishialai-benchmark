@@ -32,13 +32,13 @@ Environment Variables:
 - `database_url`: URL for the MySQL database.
 
 Functions:
+- `create_database_if_not_exists`: Creates the database if it does not exist.
 - `get_cached_token`: Fetches the cached access token.
 - `download_images`: Downloads images from the COCO dataset to a local directory.
 - `save_file`: Saves a file to a specified directory.
 - `get_token`: Fetches the access token from Fishial API and caches it for 10 minutes.
 - `get_image_data`: Get image data from the COCO dataset.
 - `fetch_image_url`: Fetches the URL for image upload from Fishial API.
-- `create_database_if_not_exists`: Creates the database if it does not exist.
 
 """
 
@@ -76,6 +76,40 @@ database_url = os.getenv('DATABASE_URL')
 
 
 '''Functions'''
+def create_database_if_not_exists():
+    try:
+        # Try to connect to MySQL server
+        connection = mysql.connector.connect(
+            host='localhost',
+            user='root'
+        )
+        
+        # Check if the database exists
+        cursor = connection.cursor()
+        cursor.execute("SHOW DATABASES LIKE 'fishial_benchmark_db'")
+        result = cursor.fetchone()
+        
+        if not result:
+            # If database doesn't exist, execute setup.sql to create it
+            with open('setup.sql', 'r') as file:
+                setup_sql = file.read()
+            cursor.execute(setup_sql)
+            print("Database 'fishial_benchmark_db' created successfully!")
+        else:
+            print("Database 'fishial_benchmark_db' already exists.")
+
+    except Error as e:
+        print(f"Error connecting to MySQL server: {e}")
+
+    finally:
+        if 'connection' in locals() or 'connection' in globals():
+            connection.close()
+            cursor.close()
+
+
+
+
+
 def get_cached_token():
     '''
     Fetches the cached access token
@@ -87,6 +121,18 @@ def get_cached_token():
     if not token:
         raise Exception('Access token not found in cache')
     return token
+
+def get_cached_image_url_data():
+    '''
+    Fetches the cached image URL data
+
+    Returns:
+    dict: image URL data
+    '''
+    image_url_data = cache.get('image_url_data')
+    if not image_url_data:
+        raise Exception('Image URL data not found in cache')
+    return image_url_data
 
 def download_images(file_path):
     '''
@@ -202,9 +248,38 @@ def get_image_data(coco, image_id):
     except ImageDataError as e:
         raise e  # Re-raise custom exceptions
     except Exception as e:
-        # Catch any unexpected errors and raise a generic exception
-        raise ImageDataError(f'An unexpected error occurred: {str(e)}')
+        raise ImageDataError(f'An unexpected error occurred in get_image_data: {str(e)}')
     
+
+
+@cache.cached(timeout=600, key_prefix='image_url_data') # cache the image url data for 10 minutes
+def send_image_url_request(url,headers, data):
+    '''
+    Send the image url request to Fishial API
+
+    Parameters:
+    url: str
+    headers: dict
+    data: dict
+
+    Returns:
+    JSON response: image upload URL data or error message
+    '''
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code != 200:
+        raise Exception(f'Failed to get image upload URL: {response.json()}')
+    
+    # Extract id, url, headers, and filename from the response
+    data = response.json()
+    image_data = {
+        'id': data['id'],
+        'url': data['direct-upload']['url'],
+        'headers': data['direct-upload']['headers'],
+        'filename': data['filename']
+    }
+
+    return image_data
+
 
 
 def fetch_image_url(url,image_id):
@@ -225,7 +300,6 @@ def fetch_image_url(url,image_id):
 
         # Pull access token from cache
         cachedToken = get_cached_token()
-        print(cachedToken)
 
         # Get image data from COCO dataset
         image_data = get_image_data(coco, image_id)
@@ -247,43 +321,94 @@ def fetch_image_url(url,image_id):
                 }
         }
 
-        # Send the image url request to Fishial API
-        response = requests.post(url, headers=headers, json=data)
-        return jsonify(response.json())
+        # Send the image url request to Fishial API and cache data
+        send_image_url_request(url, headers, data)
+        return True
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        raise ValueError(f"Error in fetch_image_url: {str(e)}")
     except Exception as e:
-        return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
+        raise Exception(f"Unexpected error in fetch_image_url: {str(e)}")
 
 
-def create_database_if_not_exists():
+def submit_image():
+    '''
+    Submit image to Fishial API
+
+    Parameters:
+    response_id: int
+
+    Returns:
+    JSON response: success message or error message
+    '''
     try:
-        # Try to connect to MySQL server
-        connection = mysql.connector.connect(
-            host='localhost',
-            user='root'
-        )
+        # Get cached image URL Data
+        image_url_data = get_cached_image_url_data()
         
-        # Check if the database exists
-        cursor = connection.cursor()
-        cursor.execute("SHOW DATABASES LIKE 'fishial_benchmark_db'")
-        result = cursor.fetchone()
-        
-        if not result:
-            # If database doesn't exist, execute setup.sql to create it
-            with open('setup.sql', 'r') as file:
-                setup_sql = file.read()
-            cursor.execute(setup_sql)
-            print("Database 'fishial_benchmark_db' created successfully!")
-        else:
-            print("Database 'fishial_benchmark_db' already exists.")
+        # Prepare headers for the request
+        headers = image_url_data['headers']
 
-    except Error as e:
-        print(f"Error connecting to MySQL server: {e}")
+        # Pull url from image_url_data
+        url = image_url_data['url']
 
-    finally:
-        if 'connection' in locals() or 'connection' in globals():
-            connection.close()
-            cursor.close()
+        # Pull filename from image_url_data
+        filename = image_url_data['filename']
 
+        # Send the image to Fishial API
+        with open(f'images/{filename}', 'rb') as image:
+            response = requests.put(url, headers=headers, data=image)
+
+    except ValueError as e:
+        raise ValueError(f"Error in submit_image: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Unexpected error in submit_image: {str(e)}")
+
+    
+def get_api_url(environment):
+    '''
+    Get the API URL based on the environment
+
+    Parameters:
+    environment: str
+
+    Returns:
+    str: API URL
+    '''
+    if environment == 'stage':
+        return 'https://api.stage.fishial.ai/v1/recognition/upload'
+    else:
+        return 'https://api.fishial.ai/v1/recognition/upload'
+    
+
+
+def fish_detection():
+    '''
+    Request fish detection from Fishial API
+    Returns:
+    JSON response: detection results or error message
+    '''
+    pass
+
+def compare_results(detection_results):
+    '''
+    Compare results from Fishial API to test data
+
+    Parameters:
+    detection_results: JSON
+
+    Returns:
+    bool: match results
+    '''
+    pass
+
+def send_feedback(match):
+    '''
+    Send match results feedback to Fishial API
+    
+    Parameters:
+    match: bool
+    
+    Returns:
+    JSON response: success message or error message
+    '''
+    pass
