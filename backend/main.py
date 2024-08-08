@@ -164,16 +164,14 @@ def submit_image_with_feedback(environment, image_id):
     Returns:
     JSON response: success message or error message
     '''
-        
-    url = get_api_url(environment)
 
     try:
         # submit image data to Fishial API to receive image url
-        fetch_image_url(url, image_id)
+        fetch_image_url(environment, image_id)
         # upload image to Fishial API using image url
         submit_image()
         # request fish detection from Fishial API
-        detection_results = fish_detection()
+        detection_results = fish_detection(environment)
         # compare results from Fishial API to test data
         match = compare_results(detection_results)
         # send match results feedback to Fishial API

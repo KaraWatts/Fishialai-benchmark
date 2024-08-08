@@ -272,7 +272,7 @@ def send_image_url_request(url,headers, data):
     # Extract id, url, headers, and filename from the response
     data = response.json()
     image_data = {
-        'id': data['id'],
+        'signed-id': data['signed-id'],
         'url': data['direct-upload']['url'],
         'headers': data['direct-upload']['headers'],
         'filename': data['filename']
@@ -282,7 +282,7 @@ def send_image_url_request(url,headers, data):
 
 
 
-def fetch_image_url(url,image_id):
+def fetch_image_url(environment,image_id):
     '''
     Fetch URL for image upload from Fishial API
 
@@ -295,6 +295,9 @@ def fetch_image_url(url,image_id):
     '''
 
     try:
+        # Get the API URL based on the environment
+        url = get_api_url(environment, 'upload')
+
         # Get the COCO instance
         coco = get_coco_instance()
 
@@ -357,6 +360,8 @@ def submit_image():
         # Send the image to Fishial API
         with open(f'images/{filename}', 'rb') as image:
             response = requests.put(url, headers=headers, data=image)
+        if response.status_code != 200:
+            raise Exception(f"Failed to upload image: {str(response.json())}")
 
     except ValueError as e:
         raise ValueError(f"Error in submit_image: {str(e)}")
@@ -364,7 +369,7 @@ def submit_image():
         raise Exception(f"Unexpected error in submit_image: {str(e)}")
 
     
-def get_api_url(environment):
+def get_api_url(environment, action):
     '''
     Get the API URL based on the environment
 
@@ -375,19 +380,51 @@ def get_api_url(environment):
     str: API URL
     '''
     if environment == 'stage':
-        return 'https://api.stage.fishial.ai/v1/recognition/upload'
+        return f'https://api.stage.fishial.ai/v1/recognition/{action}'
     else:
-        return 'https://api.fishial.ai/v1/recognition/upload'
+        return f'https://api.fishial.ai/v1/recognition/{action}'
     
 
 
-def fish_detection():
+def fish_detection(environment):
     '''
     Request fish detection from Fishial API
     Returns:
     JSON response: detection results or error message
     '''
-    pass
+    try:
+        # Get the API URL based on the environment
+        url = get_api_url(environment, 'image')
+
+        # Get cached image URL Data
+        image_url_data = get_cached_image_url_data()
+
+        # Pull signed-id from image_url_data
+        signed_id = image_url_data['signed-id']
+
+        params = {
+            'q': signed_id
+        }
+
+        # Pull access token from cache
+        cachedToken = get_cached_token()
+        
+        # Prepare headers for the request
+        headers = {
+            'Authorization': f'Bearer {cachedToken}',
+        }
+
+        print(headers)
+        print(params)
+        # Send the request to Fishial API
+        response = requests.get(url, params=params, headers=headers)
+        print(response.json())
+        if response.status_code != 200:
+            raise Exception(f"Failed to get detection results: {response.json()}")
+        return response.json()
+    except Exception as e:
+        raise Exception(f"Unexpected error in fish_detection: {str(e)}")
+
 
 def compare_results(detection_results):
     '''
@@ -399,7 +436,7 @@ def compare_results(detection_results):
     Returns:
     bool: match results
     '''
-    pass
+    print(detection_results)
 
 def send_feedback(match):
     '''
