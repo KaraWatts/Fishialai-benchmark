@@ -57,6 +57,7 @@ from PIL import Image
 from io import BytesIO
 from . import mask as maskUtils
 import os
+import re
 from urllib.parse import urlparse, unquote
 from collections import defaultdict
 import sys
@@ -128,19 +129,15 @@ class COCO:
         self.cats = cats
 
 
-    def download_and_cache_images(self, cache_dir, image_url, image_id):
+    def download_and_cache_images(self, cache_dir, image_url, file_name):
         # Define the local file path
-        path = urlparse(image_url).path
-        ext = os.path.splitext(path)[1]
-        if '-' in ext:
-            ext = ext.split('-')[0]
-        file_extension = unquote(ext)
-        file_name = f"{image_id}{file_extension}"
+        if re.search('[;-]', file_name):
+            file_name = re.split('[;-]', file_name, maxsplit=1)[0]
         file_path = os.path.join(cache_dir, file_name)
         
         # Check if the image is already cached
         if os.path.exists(file_path):
-            print(f"Image {image_id} is already cached.")
+            # print(f"Image {image_id} is already cached.")
             return file_path
         
         # Download the image
@@ -148,11 +145,11 @@ class COCO:
         if response.status_code == 200:
             # Save the image to the cache directory
             image = Image.open(BytesIO(response.content))
+            print(f"Image {file_name} downloaded and cached.")
             image.save(file_path)
-            print(f"Image {image_id} downloaded and cached.")
             return file_path
         else:
-            print(f"Failed to download image {image_id}. HTTP status code: {response.status_code}")
+            print(f"Failed to download image {file_name}. HTTP status code: {response.status_code}")
             return None
     
     def info(self):

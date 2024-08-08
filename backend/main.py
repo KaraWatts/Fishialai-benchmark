@@ -11,6 +11,7 @@ import enum
 import requests
 import os
 import hashlib
+import save_file from backend.util
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,6 +21,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 app.config['CACHE_TYPE'] = 'simple'  # Use a simple in-memory cache
 cache = Cache(app)
+coco = None
 
 def create_database_if_not_exists():
     try:
@@ -104,11 +106,12 @@ def test_data():
 # Download Images to local directory
 def download_images(file_path):
     # initialize COCO api for instance annotations
-    coco=COCO(file_path)
+    global coco
+    coco = COCO(file_path)
     imgs = coco.loadImgs(coco.imgs)
 
     for img in imgs:
-       coco.download_and_cache_images(coco.cache_dir, img['coco_url'], img['id'])
+       coco.download_and_cache_images(coco.cache_dir, img['coco_url'], img['file_name'])
     # TODO add return control to share success or failure of download with list of images that failed to download
     
 
@@ -116,22 +119,29 @@ def download_images(file_path):
 # Upload test data coco file
 @app.route('/upload_test_data', methods=['POST'])
 def upload_test_data():
+    '''
+    Save test data to local directory
+    '''
     if 'file' not in request.files:
         return jsonify({'message': 'No file part in the request'}), 400
-
+    
+    # Get the file from the request
     file = request.files['file']
-
+    # Check if the file is empty
     if file.filename == '':
         return jsonify({'message': 'No file selected for uploading'}), 400
-
+    # Set the save directory for the file
     save_directory = 'annotations'
-    os.makedirs(save_directory, exist_ok=True)
-    file_path = os.path.join(save_directory, file.filename)
-
-    file.save(file_path)
-
-    download_images(file_path)
-    return jsonify({'message': 'File uploaded successfully!', 'filename': file.filename}), 200
+    
+    try:
+        # Save the file to the directory
+        file_path = save_file(file, save_directory)
+        # Download images from the COCO dataset and save to local directory
+        download_images(file_path)
+        # Return success message
+        return jsonify({'message': 'File uploaded successfully!', 'filename': file.filename}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 def verify_file_integrity(file_path, original_file_path):
@@ -152,8 +162,10 @@ def calculate_checksum(file_path):
 
 
 
-# get access token from Fishial API
 def get_token(environment):
+    '''
+    Fetch Access Token from Fishial API
+    '''
     if environment == 'stage':
         url = 'https://api-users.stage.fishial.ai/v1/auth/token'
         client_id = staging_ID
@@ -179,43 +191,58 @@ def get_token(environment):
 
 
 
-#fetch token and cache it
+
 @app.route('/get_token/<environment>', methods=['GET'])
 @cache.cached(timeout=600, key_prefix='access_token') # cache the access token for 10 minutes
 def fetch_token(environment):
+    '''
+    Call on Fetch Access Token Function
+    '''
     token = get_token(environment)
     if token:
-        return jsonify({'access_token': token})
+        return token
     else:
         return jsonify({'error': 'Failed to obtain token'}), 500
 
 
-# request url for image upload
+
 @app.route('/image_url/<environment>/<image_id>', methods=['POST'])
 def request_image_url(environment, image_id):
+    '''
+    Request URL for image upload
+    '''
+    global coco
+    if coco is None:
+        return jsonify({'error': 'COCO is not initialized'}), 400
+    
     if environment == 'stage':
         url = 'https://api.stage.fishial.ai/v1/recognition/upload'
     else:
         url = 'https://api.fishial.ai/v1/recognition/upload'
+
     # pull the access token from cache
-    token = cache.get('access_token')
-    if not token:
+    cachedToken = cache.get('access_token')
+    if not cachedToken:
         return jsonify({'error': 'Access token not found'}), 500
+    
     # use the access token to upload image
     headers = {
-        'Authorization': f'Bearer {token}',
+        'Authorization': f'Bearer {cachedToken}',
         'Accept': 'application/json',
         'Content-Type': 'application/json'
     }
+
+    filename = coco.imgs[int(image_id)]['file_name']
+    bytesize = os.path.getsize(f'images/{filename}')
+    checksum = coco.imgs[int(image_id)]['checksum']
     data = {
         "blob": {
-            "filename": "fishpic.jpg",
+            "filename": filename,
             "content_type": "image/jpeg",
-            "byte_size": 2204455,
-            "checksum": "EA5w4bPQDfzBgEbes8ZmuQ=="
+            "byte_size": bytesize,
+            "checksum": checksum
             }
     }
-
     response = requests.post(url, headers=headers, json=data)
 
     if response.status_code == 200:
@@ -249,7 +276,7 @@ def upload_image():
 
 #TODO - set up image data to be found by image id - can find individual image or loop through all
 #TODO - need to combine with coco.py files to get image data
-#TODO - set upload data to save images into app files - put on .gitignore to avoid over taxing the server
+
         
 if __name__ == "__main__":
     app.run(debug=True, port=8080)
