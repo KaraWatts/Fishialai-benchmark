@@ -130,6 +130,9 @@ class COCO:
 
 
     def download_and_cache_images(self, cache_dir, image_url, file_name):
+        '''
+        Download and cache the image to the cache directory.
+        '''
         # Define the local file path
         if re.search('[;-]', file_name):
             file_name = re.split('[;-]', file_name, maxsplit=1)[0]

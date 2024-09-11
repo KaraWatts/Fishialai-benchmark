@@ -8,6 +8,8 @@ from flask_caching import Cache
 import mysql.connector
 from mysql.connector import Error
 from flask_caching import Cache
+import hashlib
+import base64
 
 
 """
@@ -77,6 +79,9 @@ database_url = os.getenv('DATABASE_URL')
 
 '''Functions'''
 def create_database_if_not_exists():
+    '''
+    Creates the database for coco data if it does not exist
+    '''
     try:
         # Try to connect to MySQL server
         connection = mysql.connector.connect(
@@ -230,7 +235,14 @@ def get_image_data(coco, image_id):
         
         # Access the file_name and checksum from coco.imgs
         filename = coco.imgs[image_id]['file_name']
-        checksum = coco.imgs[image_id]['checksum']
+        # checksum = coco.imgs[image_id]['checksum']
+
+        # Calculate checksum directly from image file
+        checksum = calculate_md5(f'images/{filename}')
+        # Convert checksum to base64 encoded string
+        b64checksum = base64.b64encode(checksum).decode('utf-8')
+
+
         
         # Check if the file exists and get its size
         file_path = f'images/{filename}'
@@ -241,7 +253,7 @@ def get_image_data(coco, image_id):
         bytesize = os.path.getsize(file_path)
         
         # Return the information in a JSON response
-        return (filename, bytesize, checksum)
+        return (filename, bytesize, b64checksum)
     
     except ValueError:
         raise InvalidImageIDFormatError('Invalid image ID format')
@@ -252,10 +264,10 @@ def get_image_data(coco, image_id):
     
 
 
-@cache.cached(timeout=600, key_prefix='image_url_data') # cache the image url data for 10 minutes
+# @cache.cached(timeout=600, key_prefix='image_url_data') # cache the image url data for 10 minutes
 def send_image_url_request(url,headers, data):
     '''
-    Send the image url request to Fishial API
+    Request image url from Fishial API
 
     Parameters:
     url: str
@@ -271,12 +283,15 @@ def send_image_url_request(url,headers, data):
     
     # Extract id, url, headers, and filename from the response
     data = response.json()
+
     image_data = {
         'signed-id': data['signed-id'],
         'url': data['direct-upload']['url'],
         'headers': data['direct-upload']['headers'],
         'filename': data['filename']
     }
+    if 'content-type' not in data['direct-upload']['headers']:
+        image_data['headers']['Content-Type'] = ''
 
     return image_data
 
@@ -325,16 +340,24 @@ def fetch_image_url(environment,image_id):
         }
 
         # Send the image url request to Fishial API and cache data
-        send_image_url_request(url, headers, data)
-        return True
+        url_data = send_image_url_request(url, headers, data)
+        
+        return url_data
 
     except ValueError as e:
         raise ValueError(f"Error in fetch_image_url: {str(e)}")
     except Exception as e:
         raise Exception(f"Unexpected error in fetch_image_url: {str(e)}")
 
+# Function to calculate MD5 checksum
+def calculate_md5(file_path):
+    hash_md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.digest() 
 
-def submit_image():
+def submit_image(image_url_data):
     '''
     Submit image to Fishial API
 
@@ -346,7 +369,7 @@ def submit_image():
     '''
     try:
         # Get cached image URL Data
-        image_url_data = get_cached_image_url_data()
+        # image_url_data = get_cached_image_url_data()
         
         # Prepare headers for the request
         headers = image_url_data['headers']
@@ -356,12 +379,16 @@ def submit_image():
 
         # Pull filename from image_url_data
         filename = image_url_data['filename']
+        filepath = f'images/{filename}'
+
 
         # Send the image to Fishial API
-        with open(f'images/{filename}', 'rb') as image:
+        with open(filepath, 'rb') as image:
+            image.seek(0)  # Ensure the pointer is at the start
             response = requests.put(url, headers=headers, data=image)
-        if response.status_code != 200:
-            raise Exception(f"Failed to upload image: {str(response.json())}")
+            
+            if response.status_code not in [200, 201]:
+                raise Exception(f"Failed to upload image: {str(response.text)}")
 
     except ValueError as e:
         raise ValueError(f"Error in submit_image: {str(e)}")
@@ -369,6 +396,7 @@ def submit_image():
         raise Exception(f"Unexpected error in submit_image: {str(e)}")
 
     
+
 def get_api_url(environment, action):
     '''
     Get the API URL based on the environment
@@ -385,8 +413,7 @@ def get_api_url(environment, action):
         return f'https://api.fishial.ai/v1/recognition/{action}'
     
 
-
-def fish_detection(environment):
+def fish_detection(environment, image_url_data):
     '''
     Request fish detection from Fishial API
     Returns:
@@ -397,7 +424,7 @@ def fish_detection(environment):
         url = get_api_url(environment, 'image')
 
         # Get cached image URL Data
-        image_url_data = get_cached_image_url_data()
+        # image_url_data = get_cached_image_url_data()
 
         # Pull signed-id from image_url_data
         signed_id = image_url_data['signed-id']
@@ -414,11 +441,10 @@ def fish_detection(environment):
             'Authorization': f'Bearer {cachedToken}',
         }
 
-        print(headers)
-        print(params)
+        
         # Send the request to Fishial API
         response = requests.get(url, params=params, headers=headers)
-        print(response.json())
+        
         if response.status_code != 200:
             raise Exception(f"Failed to get detection results: {response.json()}")
         return response.json()
@@ -426,7 +452,7 @@ def fish_detection(environment):
         raise Exception(f"Unexpected error in fish_detection: {str(e)}")
 
 
-def compare_results(detection_results):
+def compare_results(detection_results, image_id, environment):
     '''
     Compare results from Fishial API to test data
 
@@ -436,7 +462,9 @@ def compare_results(detection_results):
     Returns:
     bool: match results
     '''
-    print(detection_results)
+    # Get the COCO instance
+    pass
+
 
 def send_feedback(match):
     '''

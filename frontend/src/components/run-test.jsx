@@ -25,10 +25,11 @@ export default function RunTest() {
     try {
       updateTaskStatus(1, 'running');
       const token = await axios.get(`http://localhost:8080/get_token/${environment}`);
+      console.log(token.data);
       updateTaskStatus(1, 'success');
 
       updateTaskStatus(2, 'running');
-      const imageURL = await axios.post(`http://localhost:8080/image_url/${environment}/1258082`);
+      const imageURL = await axios.post(`http://localhost:8080/image_url/${environment}/8543`);
       console.log(imageURL.data);
       updateTaskStatus(2, 'success');
 

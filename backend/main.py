@@ -1,10 +1,11 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, Float, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Text, Float, UniqueConstraint, Boolean, LargeBinary, text
 import enum
 import requests
-from utilities import fish_detection, compare_results, send_feedback, get_api_url, save_file, download_images, get_token, fetch_image_url, submit_image ,create_database_if_not_exists, database_url, cache, staging_secret, staging_ID, prod_ID, prod_secret
+from utilities import fish_detection, compare_results, send_feedback, save_file, download_images, get_token, fetch_image_url, submit_image ,create_database_if_not_exists, get_coco_instance, database_url, cache, staging_secret, staging_ID, prod_ID, prod_secret
+import json
 
 
 # Initialize Flask application
@@ -65,13 +66,28 @@ class BenchmarkRun(db.Model):
     stage_or_production = Column(Enum(StageOrProductionEnum), nullable=False)
     run_datetime = Column(DateTime, nullable=False)
     coco_species_common_name = Column(String(255))
-    coco_species_genius = Column(String(255))
-    dev_api_results_json = Column(Text)
+    coco_species_genus = Column(String(255))
+    match = Column(Boolean, nullable=False)
+    match_accuracy = Column(Float)
+    dev_api_results_json = Column(LargeBinary)
     endpoint_execute_time = Column(Float)
 
     __table_args__ = (
         UniqueConstraint('coco_image_id', 'dev_api_version', 'stage_or_production', 'run_datetime', name='unique_key_index'),
     )
+
+# Create tables
+with app.app_context():
+    db.create_all()
+    print("Tables created successfully!")
+
+
+# Attempting to increase max allowed packet size for MySQL to accomodate large json data
+with app.app_context():
+    db.session.execute(text("SET GLOBAL max_allowed_packet = 1116777216"))
+    db.session.commit()
+    print("max_allowed_packet updated to 16MB.")
+
 
 
 # Test Object for route testing
@@ -167,13 +183,15 @@ def submit_image_with_feedback(environment, image_id):
 
     try:
         # submit image data to Fishial API to receive image url
-        fetch_image_url(environment, image_id)
+        image_url_data = fetch_image_url(environment, image_id)
         # upload image to Fishial API using image url
-        submit_image()
+        submit_image(image_url_data)
         # request fish detection from Fishial API
-        detection_results = fish_detection(environment)
+        detection_results = fish_detection(environment, image_url_data)
+        # store detection results in database
+        prepare_submit_detection_data(detection_results, image_id, environment)
         # compare results from Fishial API to test data
-        match = compare_results(detection_results)
+        match = compare_results(detection_results, image_id, environment)
         # send match results feedback to Fishial API
         send_feedback(match)
 
@@ -185,11 +203,81 @@ def submit_image_with_feedback(environment, image_id):
         return jsonify({'error': str(e)}), 500
 
 
+def prepare_submit_detection_data(detection_results, image_id, environment):
+    coco = get_coco_instance()
+    print(detection_results['results'][0]['species'])
+    image_id = int(image_id)
+    coco_scientific_name = None
+    results = detection_results['results'][0]['species']
+    match = False
+    image_data = coco.imgToAnns[image_id]
+    if len(image_data) > 1:
+        category_id = image_data[1]['category_id']
+        coco_scientific_name = coco.cats[category_id]['supercategory']
+        for species in results:
+            if species['name'] == coco_scientific_name:
+                match = True
+                break
+    detection_results = json.dumps(detection_results).encode('utf-8')
+
+    coco_data = {
+        'image_id': image_id,
+        'scientific_name': coco_scientific_name,
+        'comparison_results': match
+    }
+    # Record fish detection data to database
+    record_fish_detection_data(coco_data, detection_results, environment)
+
+
+import datetime
+
+def record_fish_detection_data(coco_data, fish_detection_data, environment):
+    '''
+    Record fish detection data to database
+    '''
+    pass
+
+    # Record fish detection data to database
+    new_test_run = BenchmarkRun(
+        coco_image_id=coco_data['image_id'],
+        dev_api_version='v1',
+        stage_or_production=environment,
+        run_datetime=datetime.datetime.now(),
+        coco_species_genus=coco_data['scientific_name'],
+        match=coco_data['comparison_results'],
+        dev_api_results_json=fish_detection_data, 
+        endpoint_execute_time=0.5
+    )
+
+    db.session.add(new_test_run)
+    db.session.commit()
+
+    test_results = check_benchmark(coco_data['image_id'])
+    print(test_results)
+
+def check_benchmark(coco_image_id):
+    record = BenchmarkRun.query.filter_by(coco_image_id=coco_image_id).order_by(BenchmarkRun.run_datetime.desc()).first()
+    
+    if record:
+        return (
+            'id', record.id,
+            'coco_image_id', record.coco_image_id,
+            'dev_api_version', record.dev_api_version,
+            'stage_or_production', record.stage_or_production.name,
+            'run_datetime', record.run_datetime.isoformat(),
+            'coco_species_genus', record.coco_species_genus,
+            'match', record.match,
+            'endpoint_execute_time', record.endpoint_execute_time
+        )
+    else:
+        return jsonify({'message': 'Record not found'}), 404
 
 
 
 #TODO - set up image data to be found by image id - can find individual image or loop through all
 #TODO - need to combine with coco.py files to get image data
+
+
 
         
 if __name__ == "__main__":
