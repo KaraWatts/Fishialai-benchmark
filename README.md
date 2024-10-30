@@ -154,6 +154,6 @@ We welcome contributions to improve and expand the Fishial AI Benchmark Testing 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for more details.
 
 ## Contact
-For questions, issues, or feedback, please feel free to open an issue on GitHub or reach out directly.
+For questions, issues, or feedback, please feel free to open an [Issue](https://github.com/KaraWatts/fishialai-benchmark/issues) on GitHub or reach out directly.
 
 **Happy Testing!**
