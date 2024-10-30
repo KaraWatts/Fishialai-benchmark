@@ -74,15 +74,14 @@ By default, the frontend will start on http://localhost:3000.
 ## Backend API Endpoints
 The backend API provides several endpoints to facilitate the upload, testing, and benchmarking of AI models.
 
-- **GET** - /test: Health check endpoint to verify that the API is running correctly.
+| Method | Endpoint                  | Description                                |
+|--------|----------------------------|--------------------------------------------|
+| GET    | `/test`                    | Health check for the API                   |
+| POST   | `/upload_test_data`        | Uploads COCO file and downloads images     |
+| GET    | `/get_token/<env>`         | Retrieves an access token for Fishial API  |
+| POST   | `/image_url/<env>/<id>`    | Retrieves image upload URL                 |
+| PUT    | `/upload_image`            | Uploads an image to Fishial API            |
 
-- **POST** - /upload_test_data: Uploads a COCO file and downloads any associated images that have not already been downloaded.
-
-- **GET** - /get_token/<environment>: Retrieves an access token from the Fishial API for a specified environment (e.g., staging, production).
-
-- **POST** - /image_url/<environment>/<image_id>: Retrieves an image upload URL from the Fishial API based on the specified environment and image ID.
-
-- **PUT** - /upload_image: Uploads an image to the Fishial API using a previously retrieved upload URL.
 
 ## End Goals
 
