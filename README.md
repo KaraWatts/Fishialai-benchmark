@@ -2,6 +2,19 @@
 
 This project is a benchmarking tool for evaluating Fishial AI models, specifically designed to streamline the testing and validation process for new model versions. It allows users to upload labeled test datasets in COCO format, select the Fishial AI model they want to test, and compare the model’s predictions against expected results. The tool also performs regression testing by comparing new models with previous versions to confirm improvements and prevent regressions.
 
+## Table of Contents
+- [Prerequisites](#prerequisites)
+- [Setup](#setup)
+  - [Backend Setup (Flask)](#2-backend-setup-flask)
+  - [Frontend Setup (React)](#3-frontend-setup-react)
+- [API Endpoints](#api-endpoints)
+- [Usage](#end-goals)
+- [Key Technologies](#key-technologies)
+- [Running the Application](#running-the-full-application)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
+
 ## Prerequisites
 
 Before getting started, make sure you have the following installed:
@@ -71,7 +84,7 @@ By default, the backend server will start on http://127.0.0.1:5000.
     ```
 By default, the frontend will start on http://localhost:3000.
 
-## Backend API Endpoints
+## API Endpoints
 The backend API provides several endpoints to facilitate the upload, testing, and benchmarking of AI models.
 
 | Method | Endpoint                  | Description                                |
