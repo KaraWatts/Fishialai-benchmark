@@ -120,3 +120,39 @@ npm run dev
 ```
 Visit http://localhost:3000 in your browser to access the application. 
 
+## Contributing
+We welcome contributions to improve and expand the Fishial AI Benchmark Testing Suite! To contribute, please follow these steps:
+
+1. **Fork the Repository:** Click on "Fork" at the top right of this page to create a copy of the repository under your GitHub account.
+
+2. **Clone the Forked Repository:**
+    ```
+    git clone https://github.com/<your-username>/Fishialai-benchmark.git
+    cd fishialai-benchmark
+    ```
+3. **Follow Setup Instructions from step 2:** [Return to Setup section](#setup)
+
+4. **Create a New Branch:** Use a descriptive branch name that reflects your changes.
+    ```
+    git checkout -b feature/your-feature-name
+    ```
+5. **Make Your Changes:** Implement the changes or features you wish to add, following coding and styling guidelines.
+
+6. **Commit Your Changes:** Write clear, concise commit messages.
+    ```
+    git commit -m "Add detailed description of what you changed"
+    ```
+7. Push Your Changes:
+    ```
+    git push origin feature/your-feature-name
+    ```
+
+8. **Create a Pull Request:** Go to the repository on GitHub, navigate to the "Pull requests" tab, and click "New pull request". Select your forked branch and submit your pull request for review.
+
+## License
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for more details.
+
+## Contact
+For questions, issues, or feedback, please feel free to open an issue on GitHub or reach out directly.
+
+**Happy Testing!**
