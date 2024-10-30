@@ -136,18 +136,7 @@ We welcome contributions to improve and expand the Fishial AI Benchmark Testing 
     ```
     git checkout -b feature/your-feature-name
     ```
-5. **Make Your Changes:** Implement the changes or features you wish to add, following coding and styling guidelines.
-
-6. **Commit Your Changes:** Write clear, concise commit messages.
-    ```
-    git commit -m "Add detailed description of what you changed"
-    ```
-7. Push Your Changes:
-    ```
-    git push origin feature/your-feature-name
-    ```
-
-8. **Create a Pull Request:** Go to the repository on GitHub, navigate to the "Pull requests" tab, and click "New pull request". Select your forked branch and submit your pull request for review.
+5. **Make Your Changes and Submit a Pull Request:** Implement the changes or features you wish to add, adhering to the code style and include clear commit messages. Ensure Pull request is detailed, including screenshots for any changes to the UI.
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for more details.
