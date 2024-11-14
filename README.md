@@ -115,7 +115,7 @@ By achieving these goals, the app will streamline the benchmarking and validatio
 - **Flask**: Provides the backend API for managing and processing model benchmark requests.
 - **React**: Powers the frontend interface, allowing users to upload files, select models, and view results.
 - **MySQL**: Stores historical benchmarking results for each model and image, enabling performance tracking over time.
-- **[pycocotools**: Used to parse COCO-formatted datasets. The [pycocotools library](https://github.com/cocodataset/cocoapi/tree/master) allows the application to handle labeled datasets efficiently, facilitating image retrieval and comparison with expected results in the COCO format.
+- **Pycocotools**: Used to parse COCO-formatted datasets. The [pycocotools library](https://github.com/cocodataset/cocoapi/tree/master) allows the application to handle labeled datasets efficiently, facilitating image retrieval and comparison with expected results in the COCO format.
 
 
 ## Running the Full Application
